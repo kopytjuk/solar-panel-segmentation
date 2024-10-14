@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
+from PIL import Image
 
 from solarnet.preprocessing import MaskMaker, ImageSplitter
 from solarnet.datasets import ClassifierDataset, SegmenterDataset, make_masks
@@ -195,3 +196,141 @@ class RunTask:
         self.train_segmenter(max_epochs=s_max_epochs, val_size=s_val_size, test_size=s_test_size,
                              warmup=s_warmup, patience=s_patience, use_classifier=True,
                              data_folder=data_folder, device=device)
+
+
+    @staticmethod
+    def classify_new_data(data_folder='new_data', 
+                        device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
+        """Predict on new data using the trained classifier model
+
+        Parameters
+        ----------
+        data_folder: pathlib.Path
+            Path of the folder containing the trained models (classifier or segmenter)
+        new_data_folder: pathlib.Path
+            Path of the folder containing the new images to predict on
+        device: torch.device, default: cuda if available, else cpu
+            The device to perform predictions on
+        """
+        data_folder = Path(data_folder)
+        new_data_folder = data_folder / "processed"
+
+        # Load the new data
+        # images are not
+        classifier_dataset = ClassifierDataset(processed_folder=new_data_folder)
+
+        new_dataloader = DataLoader(classifier_dataset, batch_size=64, shuffle=False)
+        
+        # Load the appropriate model based on the model_type parameter
+        model_dir = Path("data") / 'models'
+        model_type = "Classifier"
+        model = Classifier()
+        model_path = model_dir / 'classifier.model'
+
+        # Load the model's state_dict
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.eval()  # Set model to evaluation mode
+        
+        if device.type != 'cpu': model = model.cuda()
+        
+        
+        print("Generating test results")
+        preds, true = [], []
+        with torch.no_grad():
+            for test_x, test_y in tqdm(new_dataloader):
+                test_preds = model(test_x)
+                preds.append(test_preds.squeeze(1).cpu().numpy().round())
+                true.append(test_y.cpu().numpy())
+
+        # real_labels = classifier_dataset.y.cpu().numpy()
+        predicted = np.concatenate(preds)
+        true_labels = np.concatenate(true)  # true labels and real label
+        comparison = true_labels == predicted
+        print(f"identified {np.round(np.sum(comparison) / len(true_labels) * 100, 2)}% of buildings with PV")
+
+        not_identified = 0
+        wrong_indentified = 0
+        for i, label in enumerate(true_labels):
+            if label == 1 and predicted[i] == 0:
+                not_identified += 1
+            if label == 0 and predicted[i] == 1:
+                wrong_indentified += 1
+
+        print(f"{np.round(not_identified / len(predicted) * 100, 2)} % PVs were not identified")
+        print(f"{np.round(wrong_indentified / len(predicted) * 100, 2)}% were identified wrongly with PV")
+
+        # Save predictions for analysis
+        np.save(model_dir / f'{model_type}_new_preds.npy', np.concatenate(preds))
+        np.save(model_dir / f'{model_type}_new_true.npy', np.concatenate(true))
+
+        print(f"Predictions saved in {model_dir}")
+
+    @staticmethod
+    def segment_new_data(data_folder='new_data',
+                         device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
+              
+        """Predict on new data using the trained segmenter model
+
+        Parameters
+        ----------
+        data_folder: pathlib.Path
+            Path of the folder containing the trained models (segmenter)
+        new_data_folder: pathlib.Path
+            Path of the folder containing the new images to predict on
+        device: torch.device, default: cuda if available, else cpu
+            The device to perform predictions on
+        """
+
+        data_folder = Path(data_folder)
+        new_data_folder = data_folder / "processed"
+
+        segmenter_dataset = SegmenterDataset(processed_folder=new_data_folder, transform_images=False)
+        new_dataloader = DataLoader(segmenter_dataset, batch_size=64)
+        
+        # Load the appropriate model based on the model_type parameter
+        model_dir = Path("data") / 'models'
+        model_type = "Segmenter"
+        model = Segmenter()
+        model_path = model_dir / 'segmenter.model'
+
+        # Load the model's state_dict
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.eval()  # Set model to evaluation mode
+        
+        if device.type != 'cpu': model = model.cuda()
+            
+        print("Generating test results")
+        images, preds, true = [], [], []
+        # we dont have masks for these pictures to evaluate the model but the images with the predicted areas will be saved for 
+        # later manual inspection
+        with torch.no_grad():
+            for test_x, _ in tqdm(new_dataloader):
+                test_preds = model(test_x)
+                images.append(test_x.cpu().numpy())
+                preds.append(test_preds.cpu().numpy())
+
+        all_images = np.concatenate(images)
+        all_images = (all_images * 255).astype('uint8')  # Scale to [0, 255] and convert to uint8
+        rearanged_imgs = [np.moveaxis(i, 0, -1) for i in all_images]  # Rearrange (bands, x, y) to (x, y, bands)
+        new_images = [Image.fromarray(img.astype('uint8')) for img in rearanged_imgs]  # Convert to unsigned 8-bit integer format
+
+        pred_images = np.concatenate(preds)
+        
+        for i in pred_images:
+            image = (pred_images[i] * 255).astype('uint8')
+            rearanged_pred_imgs = np.moveaxis(pred_images[i].squeeze(), 0, -1)
+            img = Image.fromarray(rearanged_pred_imgs.astype('uint8'))# Convert to unsigned 8-bit integer format
+
+
+        identified_folder = Path(__file__).parent.parent / "new_data" / "identified"
+        identified_folder.mkdir(exist_ok=True)
+        # save the images in the identified folder for manual inspection
+        for i, img in enumerate(new_images):
+            img.save(identified_folder / segmenter_dataset.org_solar_files[i].name.replace("npy", "png"))
+
+
+        # Save predictions for analysis
+        np.save(model_dir / f'{model_type}_new_preds.npy', np.concatenate(preds))
+        np.save(model_dir / f'{model_type}_new_true.npy', np.concatenate(true))
+        torch.cuda.empty_cache()
+        print(f"Predictions saved in {model_dir}")
