@@ -49,7 +49,9 @@ class RunTask:
     @staticmethod
     def train_classifier(max_epochs=100, warmup=2, patience=5, val_size=0.1,
                          test_size=0.1, data_folder='data',
-                         device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
+                         device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu',),
+                         retrain: bool = False
+                         ):
         """Train the classifier
 
         Parameters
@@ -73,7 +75,16 @@ class RunTask:
         """
         data_folder = Path(data_folder)
 
+        model_dir = data_folder / 'models'
+        model_path = model_dir / 'classifier.model'
+
         model = Classifier()
+        if retrain:
+            model.load_state_dict(torch.load(model_path, map_location=device))
+            model_name = "classifier_retrained.model"
+        else:
+            model_name = "classifier.model"
+        
         if device.type != 'cpu': model = model.cuda()
 
         processed_folder = data_folder / 'processed'
@@ -96,9 +107,9 @@ class RunTask:
         train_classifier(model, train_dataloader, val_dataloader, max_epochs=max_epochs,
                          warmup=warmup, patience=patience)
 
-        savedir = data_folder / 'models'
-        if not savedir.exists(): savedir.mkdir()
-        torch.save(model.state_dict(), savedir / 'classifier.model')
+
+        if not model_dir.exists(): model_dir.mkdir()
+        torch.save(model.state_dict(), model_dir / model_name)
 
         # save predictions for analysis
         print("Generating test results")
@@ -109,8 +120,8 @@ class RunTask:
                 preds.append(test_preds.squeeze(1).cpu().numpy())
                 true.append(test_y.cpu().numpy())
 
-        np.save(savedir / 'classifier_preds.npy', np.concatenate(preds))
-        np.save(savedir / 'classifier_true.npy', np.concatenate(true))
+        np.save(model_dir / f'{model_name.split(".")[0]}_preds.npy', np.concatenate(preds))
+        np.save(model_dir / f'{model_name.split(".")[0]}_true.npy', np.concatenate(true))      
 
     @staticmethod
     def train_segmenter(max_epochs=100, val_size=0.1, test_size=0.1, warmup=2,
@@ -200,7 +211,9 @@ class RunTask:
 
     @staticmethod
     def classify_new_data(data_folder='new_data', 
-                        device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
+                        device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
+                        retrained: bool=False,
+                        ):
         """Predict on new data using the trained classifier model
 
         Parameters
@@ -225,14 +238,16 @@ class RunTask:
         model_dir = Path("data") / 'models'
         model_type = "Classifier"
         model = Classifier()
-        model_path = model_dir / 'classifier.model'
+        if retrained:
+            model_path = model_dir / 'classifier_retrained.model'
+        else:
+            model_path = model_dir / 'classifier.model'
 
         # Load the model's state_dict
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()  # Set model to evaluation mode
         
         if device.type != 'cpu': model = model.cuda()
-        
         
         print("Generating test results")
         preds, true = [], []
@@ -260,8 +275,8 @@ class RunTask:
         print(f"{np.round(wrong_indentified / len(predicted) * 100, 2)}% were identified wrongly with PV")
 
         # Save predictions for analysis
-        np.save(model_dir / f'{model_type}_new_preds.npy', np.concatenate(preds))
-        np.save(model_dir / f'{model_type}_new_true.npy', np.concatenate(true))
+        np.save(model_dir / f'{model_path.name.split(".")[0]}_new_preds.npy', np.concatenate(preds))
+        np.save(model_dir / f'{model_path.name.split(".")[0]}_new_true.npy', np.concatenate(true))
 
         print(f"Predictions saved in {model_dir}")
 
@@ -309,24 +324,29 @@ class RunTask:
                 images.append(test_x.cpu().numpy())
                 preds.append(test_preds.cpu().numpy())
 
-        all_images = np.concatenate(images)
-        all_images = (all_images * 255).astype('uint8')  # Scale to [0, 255] and convert to uint8
-        rearanged_imgs = [np.moveaxis(i, 0, -1) for i in all_images]  # Rearrange (bands, x, y) to (x, y, bands)
-        new_images = [Image.fromarray(img.astype('uint8')) for img in rearanged_imgs]  # Convert to unsigned 8-bit integer format
-
-        pred_images = np.concatenate(preds)
-        
-        for i in pred_images:
-            image = (pred_images[i] * 255).astype('uint8')
-            rearanged_pred_imgs = np.moveaxis(pred_images[i].squeeze(), 0, -1)
-            img = Image.fromarray(rearanged_pred_imgs.astype('uint8'))# Convert to unsigned 8-bit integer format
-
-
         identified_folder = Path(__file__).parent.parent / "new_data" / "identified"
         identified_folder.mkdir(exist_ok=True)
-        # save the images in the identified folder for manual inspection
-        for i, img in enumerate(new_images):
-            img.save(identified_folder / segmenter_dataset.org_solar_files[i].name.replace("npy", "png"))
+
+        # all_images = np.concatenate(images)
+        # all_images = (all_images * 255).astype('uint8')  # Scale to [0, 255] and convert to uint8
+        # rearanged_imgs = [np.moveaxis(i, 0, -1) for i in all_images]  # Rearrange (bands, x, y) to (x, y, bands)
+        # new_images = [Image.fromarray(img.astype('uint8')) for img in rearanged_imgs]  # Convert to unsigned 8-bit integer format
+
+        # predicted masks of the PV
+        pred_images = np.concatenate(preds)
+        all_preds = (pred_images * 255).astype('uint8')  
+        mask_rgb = [np.repeat(i, 3, axis=0) for i in all_preds]
+        rearanged_preds= [np.moveaxis(i, 0, -1) for i in mask_rgb]  # Rearrange (bands, x, y) to (x, y, bands)
+        new_preds = [Image.fromarray(img.astype('uint8')) for img in rearanged_preds]  # Convert to unsigned 8-bit integer format
+
+        for i, img in enumerate(new_preds):
+            imgg = Image.fromarray(np.moveaxis(np.load(segmenter_dataset.org_solar_files[i]), 0, -1))
+            # put images side by side to be able to check performance manually
+            new_img = Image.new('RGB', (224*2, 224))
+            new_img.paste(imgg, (0, 0))  # Paste image1 at the left
+            new_img.paste(img, (224, 0))
+            new_img.save(identified_folder / f'predicted_{segmenter_dataset.org_solar_files[i].name.replace("npy", "png")}')
+
 
 
         # Save predictions for analysis

@@ -26,7 +26,10 @@ class SegmenterDataset:
         solar_folder = processed_folder / 'solar'
 
         self.org_solar_files = list((solar_folder / 'org').glob("*.npy"))
-        self.mask_solar_files = [solar_folder / 'mask' / f.name for f in self.org_solar_files]
+        if not any((solar_folder / 'mask').iterdir()):
+            self.mask_solar_files = []
+        else:
+            self.mask_solar_files = [solar_folder / 'mask' / f.name for f in self.org_solar_files]
 
         if mask is not None:
             self.add_mask(mask)
@@ -54,10 +57,14 @@ class SegmenterDataset:
         return chosen_function(image, mask)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-
         x = np.load(self.org_solar_files[index])
-        y = np.load(self.mask_solar_files[index])
-        if self.transform_images: x, y = self._transform_images(x, y)
         if self.normalize: x = normalize(x)
-        return torch.as_tensor(x.copy(), device=self.device).float(), \
-            torch.as_tensor(y.copy(), device=self.device).float()
+
+        if len(self.mask_solar_files) != 0:
+            y = np.load(self.mask_solar_files[index])
+            if self.transform_images: x, y = self._transform_images(x, y)
+            return torch.as_tensor(x.copy(), device=self.device).float(), \
+                torch.as_tensor(y.copy(), device=self.device).float()
+        else:  # if no masks area available, return only the original solar files:
+            if self.transform_images: x = self._transform_images(x)
+            return torch.as_tensor(x.copy(), device=self.device).float(), torch.tensor([])
