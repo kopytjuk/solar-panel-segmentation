@@ -44,12 +44,12 @@ for each image, where `0` indicates background and `1` indicates the presence of
 ```bash
 python run.py make_masks
 ```
-This step takes quite a bit of time to run. Using an `AWS t2.2xlarge` instance took the following times for each city:
+This step takes quite a bit of time to run. Using an Macbook Pro M1 took the following times for each city (min:secs):
 
-- Fresno: 14:32:09
-- Modesto: 41:48
-- Oxnard: 1:59:20
-- Stockton: 3:16:08
+- Fresno: 4:30
+- Modesto: 0:10
+- Oxnard: 0:31
+- Stockton: 0:48
 
 #### 3.2. Split images
 
