@@ -128,18 +128,7 @@ class RunTask:
         np.save(model_dir / f'{model_name.split(".")[0]}_preds.npy', np.concatenate(preds))
         np.save(model_dir / f'{model_name.split(".")[0]}_true.npy', np.concatenate(true))
 
-    @staticmethod
-    def determine_torch_device():
-        if torch.backends.mps.is_available():
-            print("Metal Performance Shaders (MPS) backend is available!")
-            device = torch.device("mps")
-        elif torch.cuda.is_available():
-            print("CUDO is available!")
-            device = torch.device('cuda:0')
-        else:
-            print("No GPU acceleration available, falling back to CPUs!")
-            device = torch.device('cpu')
-        return device
+    
 
     @staticmethod
     def train_segmenter(max_epochs=100, val_size=0.1, test_size=0.1, warmup=2,
@@ -228,6 +217,19 @@ class RunTask:
         self.train_segmenter(max_epochs=s_max_epochs, val_size=s_val_size, test_size=s_test_size,
                              warmup=s_warmup, patience=s_patience, use_classifier=True,
                              data_folder=data_folder, device=device)
+    
+    @staticmethod
+    def determine_torch_device() -> torch.device:
+        if torch.backends.mps.is_available():
+            print("Metal Performance Shaders (MPS) backend is available!")
+            device = torch.device("mps")
+        elif torch.cuda.is_available():
+            print("CUDO is available!")
+            device = torch.device('cuda:0')
+        else:
+            print("No GPU acceleration available, falling back to CPUs!")
+            device = torch.device('cpu')
+        return device
 
     @staticmethod
     def classify_new_data(data_folder='new_data',
