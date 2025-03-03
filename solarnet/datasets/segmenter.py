@@ -1,12 +1,12 @@
+import random
+from pathlib import Path
+from typing import List, Optional, Tuple
+
 import numpy as np
 import torch
-from pathlib import Path
-import random
 
-from typing import Optional, List, Tuple
-
+from .transforms import colour_jitter, horizontal_flip, no_change, vertical_flip
 from .utils import normalize
-from .transforms import no_change, horizontal_flip, vertical_flip, colour_jitter
 
 
 class SegmenterDataset:
@@ -58,13 +58,31 @@ class SegmenterDataset:
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         x = np.load(self.org_solar_files[index])
-        if self.normalize: x = normalize(x)
 
         if len(self.mask_solar_files) != 0:
             y = np.load(self.mask_solar_files[index])
-            if self.transform_images: x, y = self._transform_images(x, y)
-            return torch.as_tensor(x.copy(), device=self.device).float(), \
-                torch.as_tensor(y.copy(), device=self.device).float()
+        else:
+            y = np.zeros((0))
+        
+        # default tensor type
+        dtype_tensor = torch.float32
+
+        # the following condition is needed, since MPS only supports float16
+        if str(self.device) == "mps":
+            x = x.astype(np.float16)
+            y = y.astype(np.float16)
+            dtype_tensor = torch.float16
+
+        if self.normalize:
+            x = normalize(x)
+
+        if len(self.mask_solar_files) != 0:
+            if self.transform_images:
+                x, y = self._transform_images(x, y)
+            return torch.as_tensor(x.copy(), device=self.device, dtype=dtype_tensor).float(), \
+                torch.as_tensor(y.copy(), device=self.device, dtype=dtype_tensor).float()
         else:  # if no masks area available, return only the original solar files:
-            if self.transform_images: x = self._transform_images(x)
-            return torch.as_tensor(x.copy(), device=self.device).float(), torch.tensor([])
+            if self.transform_images:
+                x = self._transform_images(x)
+            return torch.as_tensor(x.copy(), device=self.device, dtype=dtype_tensor).float(), \
+                torch.tensor([], device=self.device, dtype=dtype_tensor)

@@ -163,6 +163,7 @@ def _train_segmenter_epoch(model: torch.nn.Module,
     t_losses, v_losses = [], []
     model.train()
     for x, y in tqdm(train_dataloader):
+
         optimizer.zero_grad()
         preds = model(x)
 

@@ -78,7 +78,7 @@ class RunTask:
 
         model_dir = data_folder / 'models'
         model_path = model_dir / 'classifier.model'
-    
+
         if device is None:
             device = RunTask.determine_torch_device()
 
@@ -128,8 +128,6 @@ class RunTask:
         np.save(model_dir / f'{model_name.split(".")[0]}_preds.npy', np.concatenate(preds))
         np.save(model_dir / f'{model_name.split(".")[0]}_true.npy', np.concatenate(true))
 
-    
-
     @staticmethod
     def train_segmenter(max_epochs=100, val_size=0.1, test_size=0.1, warmup=2,
                         patience=5, data_folder='data', use_classifier=True,
@@ -164,24 +162,29 @@ class RunTask:
 
         if device is None:
             device = RunTask.determine_torch_device()
+        
+        print(f"Using device: '{device}'")
+
+        # move weights to device
+        model.to(device)
 
         model_dir = data_folder / 'models'
         if use_classifier:
             classifier_sd = torch.load(model_dir / 'classifier.model')
             model.load_base(classifier_sd)
         processed_folder = data_folder / 'processed'
-        dataset = SegmenterDataset(processed_folder=processed_folder)
+        dataset = SegmenterDataset(processed_folder=processed_folder, device=device)
         train_mask, val_mask, test_mask = make_masks(len(dataset), val_size, test_size)
 
         dataset.add_mask(train_mask)
         train_dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
         val_dataloader = DataLoader(SegmenterDataset(mask=val_mask,
                                                      processed_folder=processed_folder,
-                                                     transform_images=False),
+                                                     transform_images=False, device=device),
                                     batch_size=64, shuffle=True)
         test_dataloader = DataLoader(SegmenterDataset(mask=test_mask,
                                                       processed_folder=processed_folder,
-                                                      transform_images=False),
+                                                      transform_images=False, device=device),
                                      batch_size=64)
 
         train_segmenter(model, train_dataloader, val_dataloader, max_epochs=max_epochs,
@@ -217,7 +220,7 @@ class RunTask:
         self.train_segmenter(max_epochs=s_max_epochs, val_size=s_val_size, test_size=s_test_size,
                              warmup=s_warmup, patience=s_patience, use_classifier=True,
                              data_folder=data_folder, device=device)
-    
+
     @staticmethod
     def determine_torch_device() -> torch.device:
         if torch.backends.mps.is_available():
