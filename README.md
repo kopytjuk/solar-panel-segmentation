@@ -1,4 +1,4 @@
-# Solar segmentation [![Build Status](https://travis-ci.com/gabrieltseng/solar-panel-segmentation.svg?branch=master)](https://travis-ci.com/gabrieltseng/solar-panel-segmentation)
+# Solar segmentation
 
 Finding solar panels using USGS satellite imagery.
 
@@ -92,18 +92,7 @@ python run.py train_both
 
 ## 4. Setup
 
-[Anaconda](https://www.anaconda.com/download/#macos) running python 3.7 is used as the package manager. To get set up
-with an environment, install Anaconda from the link above, and (from this directory) run
-
-```bash
-conda env create -f environment.{mac, ubuntu.cpu}.yml
-```
-This will create an environment named `solar` with all the necessary packages to run the code. To 
-activate this environment, run
-
-```bash
-conda activate solar
-```
+Pyenv and Poetry are used to setup the repository.
 
 This pipeline can be tested by running `pytest`.
 

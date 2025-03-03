@@ -62,7 +62,7 @@ class MaskMaker:
                 mask = np.zeros((x_size, y_size), dtype=np.byte)
 
                 for polygon in polygons:
-                    
+
                     polygon_coords = polygon_pixels[polygon]
 
                     if len(polygon_coords) < 3:
@@ -104,7 +104,7 @@ class MaskMaker:
         mask = poly_path.contains_points(coors)
 
         return mask.reshape(x_size, y_size).astype(float)
-    
+
     @staticmethod
     def make_mask_v2(coords: List, imsizes: Tuple[int, int]) -> np.array:
         """Create masks from polygon vertices using `rasterio`

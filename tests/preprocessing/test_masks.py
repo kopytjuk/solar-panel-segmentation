@@ -115,7 +115,7 @@ class TestMasks:
             polygon_coords = list(polygon.exterior.coords)
 
             for vertex_nr in range(1, max_vertices+1):
-                
+
                 if vertex_nr > num_vertices:
                     # is filled, when the vertex number does not exist
                     vertex_x_value = None

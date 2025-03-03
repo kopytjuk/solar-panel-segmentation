@@ -4,3 +4,5 @@
 *.zip
 *.tif
 *.png
+
+!.python-version

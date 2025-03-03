@@ -1,14 +1,14 @@
-import torch
-from torch.utils.data import DataLoader
+from pathlib import Path
 
 import numpy as np
-from pathlib import Path
-from tqdm import tqdm
+import torch
 from PIL import Image
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from solarnet.preprocessing import MaskMaker, ImageSplitter
 from solarnet.datasets import ClassifierDataset, SegmenterDataset, make_masks
 from solarnet.models import Classifier, Segmenter, train_classifier, train_segmenter
+from solarnet.preprocessing import ImageSplitter, MaskMaker
 
 
 class RunTask:
@@ -85,7 +85,8 @@ class RunTask:
         else:
             model_name = "classifier.model"
         
-        if device.type != 'cpu': model = model.cuda()
+        if device.type != 'cpu':
+            model = model.cuda()
 
         processed_folder = data_folder / 'processed'
         dataset = ClassifierDataset(processed_folder=processed_folder)
