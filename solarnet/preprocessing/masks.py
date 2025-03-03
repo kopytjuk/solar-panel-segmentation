@@ -62,8 +62,13 @@ class MaskMaker:
                 mask = np.zeros((x_size, y_size), dtype=np.byte)
 
                 for polygon in polygons:
+                    
+                    polygon_coords = polygon_pixels[polygon]
 
-                    polygon_coords = polygon_pixels[polygon]  # + [polygon_pixels[polygon][0]]
+                    if len(polygon_coords) < 3:
+                        # skip in case it is a line or a point
+                        continue
+
                     mask += self.make_mask_v2(polygon_coords, (x_size, y_size))
 
                 np.save(masked_city / f"{image}.npy", mask)
