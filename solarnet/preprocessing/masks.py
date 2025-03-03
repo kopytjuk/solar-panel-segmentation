@@ -1,11 +1,13 @@
-import pandas as pd
-import numpy as np
-from matplotlib.path import Path as PolygonPath
-from pathlib import Path
 from collections import defaultdict
-from tqdm import tqdm
-
+from pathlib import Path
 from typing import List, Tuple
+
+import numpy as np
+import pandas as pd
+from matplotlib.path import Path as PolygonPath
+from rasterio.features import rasterize
+from shapely import Polygon
+from tqdm import tqdm
 
 IMAGE_SIZES = {
     'Modesto': (5000, 5000),
@@ -52,12 +54,17 @@ class MaskMaker:
             # we make it
             masked_city = self.data_folder / f"{city}_masks"
             x_size, y_size = IMAGE_SIZES[city]
-            if not masked_city.exists(): masked_city.mkdir()
+
+            if not masked_city.exists():
+                masked_city.mkdir()
 
             for image, polygons in tqdm(files.items()):
-                mask = np.zeros((x_size, y_size))
+                mask = np.zeros((x_size, y_size), dtype=np.byte)
+
                 for polygon in polygons:
-                    mask += self.make_mask(polygon_pixels[polygon], (x_size, y_size))
+
+                    polygon_coords = polygon_pixels[polygon]  # + [polygon_pixels[polygon][0]]
+                    mask += self.make_mask_v2(polygon_coords, (x_size, y_size))
 
                 np.save(masked_city / f"{image}.npy", mask)
 
@@ -77,7 +84,7 @@ class MaskMaker:
         output_dict: defaultdict = defaultdict(lambda: defaultdict(list))
 
         for idx, row in polygon_images.iterrows():
-                output_dict[row.city][row.image_name].append(int(row.polygon_id))
+            output_dict[row.city][row.image_name].append(int(row.polygon_id))
         return output_dict
 
     @staticmethod
@@ -92,3 +99,13 @@ class MaskMaker:
         mask = poly_path.contains_points(coors)
 
         return mask.reshape(x_size, y_size).astype(float)
+    
+    @staticmethod
+    def make_mask_v2(coords: List, imsizes: Tuple[int, int]) -> np.array:
+        """Create masks from polygon vertices using `rasterio`
+        """
+        poly = Polygon(coords)
+
+        mask = rasterize([poly], out_shape=imsizes, fill=0, default_value=1,
+                         dtype=np.byte, all_touched=False)
+        return mask
