@@ -74,14 +74,21 @@ This step trains and saves the classifier. In addition, the test set results are
 
 ```bash
 python run.py train_classifier
+
+# On MacOS, training on Metal Performance Shaders (MPS) is possible
+python run.py train_classifier --device mps
 ```
 
 #### 3.4. Train segmentation model
 
 This step trains and saved the segmentation model. In addition, the test set results are stored for future analysis.
 By default, this step expects the classifier to have been run, and will try to use it as a pretrained base.
+
 ```bash
 python run.py train_segmenter
+
+# On MacOS, training on Metal Performance Shaders (MPS) is possible
+python run.py train_segmenter --device mps
 ```
 
 Both models can be trained consecutively, with the classifier automatically being used as the base of the segmentation
