@@ -25,6 +25,7 @@ pep8 = "^1.7.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
+flake8 = "^7.1.2"
 
 [build-system]
 requires = ["poetry-core"]

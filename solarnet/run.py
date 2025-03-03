@@ -84,7 +84,7 @@ class RunTask:
             model_name = "classifier_retrained.model"
         else:
             model_name = "classifier.model"
-        
+
         if device.type != 'cpu':
             model = model.cuda()
 
@@ -108,8 +108,8 @@ class RunTask:
         train_classifier(model, train_dataloader, val_dataloader, max_epochs=max_epochs,
                          warmup=warmup, patience=patience)
 
-
-        if not model_dir.exists(): model_dir.mkdir()
+        if not model_dir.exists():
+            model_dir.mkdir()
         torch.save(model.state_dict(), model_dir / model_name)
 
         # save predictions for analysis
@@ -122,7 +122,7 @@ class RunTask:
                 true.append(test_y.cpu().numpy())
 
         np.save(model_dir / f'{model_name.split(".")[0]}_preds.npy', np.concatenate(preds))
-        np.save(model_dir / f'{model_name.split(".")[0]}_true.npy', np.concatenate(true))      
+        np.save(model_dir / f'{model_name.split(".")[0]}_true.npy', np.concatenate(true))
 
     @staticmethod
     def train_segmenter(max_epochs=100, val_size=0.1, test_size=0.1, warmup=2,
@@ -155,7 +155,8 @@ class RunTask:
         """
         data_folder = Path(data_folder)
         model = Segmenter()
-        if device.type != 'cpu': model = model.cuda()
+        if device.type != 'cpu':
+            model = model.cuda()
 
         model_dir = data_folder / 'models'
         if use_classifier:
@@ -179,7 +180,8 @@ class RunTask:
         train_segmenter(model, train_dataloader, val_dataloader, max_epochs=max_epochs,
                         warmup=warmup, patience=patience)
 
-        if not model_dir.exists(): model_dir.mkdir()
+        if not model_dir.exists():
+            model_dir.mkdir()
         torch.save(model.state_dict(), model_dir / 'segmenter.model')
 
         print("Generating test results")
@@ -209,12 +211,11 @@ class RunTask:
                              warmup=s_warmup, patience=s_patience, use_classifier=True,
                              data_folder=data_folder, device=device)
 
-
     @staticmethod
-    def classify_new_data(data_folder='new_data', 
-                        device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
-                        retrained: bool=False,
-                        ):
+    def classify_new_data(data_folder='new_data',
+                          device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
+                          retrained: bool = False,
+                          ):
         """Predict on new data using the trained classifier model
 
         Parameters
@@ -234,7 +235,7 @@ class RunTask:
         classifier_dataset = ClassifierDataset(processed_folder=new_data_folder)
 
         new_dataloader = DataLoader(classifier_dataset, batch_size=64, shuffle=False)
-        
+
         # Load the appropriate model based on the model_type parameter
         model_dir = Path("data") / 'models'
         model_type = "Classifier"
@@ -247,9 +248,10 @@ class RunTask:
         # Load the model's state_dict
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()  # Set model to evaluation mode
-        
-        if device.type != 'cpu': model = model.cuda()
-        
+
+        if device.type != 'cpu':
+            model = model.cuda()
+
         print("Generating test results")
         preds, true = [], []
         with torch.no_grad():
@@ -262,7 +264,8 @@ class RunTask:
         predicted = np.concatenate(preds)
         true_labels = np.concatenate(true)  # true labels and real label
         comparison = true_labels == predicted
-        print(f"identified {np.round(np.sum(comparison) / len(true_labels) * 100, 2)}% of buildings with PV")
+        print(
+            f"identified {np.round(np.sum(comparison) / len(true_labels) * 100, 2)}% of buildings with PV")
 
         not_identified = 0
         wrong_indentified = 0
@@ -284,7 +287,6 @@ class RunTask:
     @staticmethod
     def segment_new_data(data_folder='new_data',
                          device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
-              
         """Predict on new data using the trained segmenter model
 
         Parameters
@@ -300,9 +302,10 @@ class RunTask:
         data_folder = Path(data_folder)
         new_data_folder = data_folder / "processed"
 
-        segmenter_dataset = SegmenterDataset(processed_folder=new_data_folder, transform_images=False)
+        segmenter_dataset = SegmenterDataset(
+            processed_folder=new_data_folder, transform_images=False)
         new_dataloader = DataLoader(segmenter_dataset, batch_size=64)
-        
+
         # Load the appropriate model based on the model_type parameter
         model_dir = Path("data") / 'models'
         model_type = "Segmenter"
@@ -312,12 +315,13 @@ class RunTask:
         # Load the model's state_dict
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()  # Set model to evaluation mode
-        
-        if device.type != 'cpu': model = model.cuda()
-            
+
+        if device.type != 'cpu':
+            model = model.cuda()
+
         print("Generating test results")
         images, preds, true = [], [], []
-        # we dont have masks for these pictures to evaluate the model but the images with the predicted areas will be saved for 
+        # we dont have masks for these pictures to evaluate the model but the images with the predicted areas will be saved for
         # later manual inspection
         with torch.no_grad():
             for test_x, _ in tqdm(new_dataloader):
@@ -335,20 +339,22 @@ class RunTask:
 
         # predicted masks of the PV
         pred_images = np.concatenate(preds)
-        all_preds = (pred_images * 255).astype('uint8')  
+        all_preds = (pred_images * 255).astype('uint8')
         mask_rgb = [np.repeat(i, 3, axis=0) for i in all_preds]
-        rearanged_preds= [np.moveaxis(i, 0, -1) for i in mask_rgb]  # Rearrange (bands, x, y) to (x, y, bands)
-        new_preds = [Image.fromarray(img.astype('uint8')) for img in rearanged_preds]  # Convert to unsigned 8-bit integer format
+        # Rearrange (bands, x, y) to (x, y, bands)
+        rearanged_preds = [np.moveaxis(i, 0, -1) for i in mask_rgb]
+        # Convert to unsigned 8-bit integer format
+        new_preds = [Image.fromarray(img.astype('uint8')) for img in rearanged_preds]
 
         for i, img in enumerate(new_preds):
-            imgg = Image.fromarray(np.moveaxis(np.load(segmenter_dataset.org_solar_files[i]), 0, -1))
+            imgg = Image.fromarray(np.moveaxis(
+                np.load(segmenter_dataset.org_solar_files[i]), 0, -1))
             # put images side by side to be able to check performance manually
             new_img = Image.new('RGB', (224*2, 224))
             new_img.paste(imgg, (0, 0))  # Paste image1 at the left
             new_img.paste(img, (224, 0))
-            new_img.save(identified_folder / f'predicted_{segmenter_dataset.org_solar_files[i].name.replace("npy", "png")}')
-
-
+            new_img.save(
+                identified_folder / f'predicted_{segmenter_dataset.org_solar_files[i].name.replace("npy", "png")}')
 
         # Save predictions for analysis
         np.save(model_dir / f'{model_type}_new_preds.npy', np.concatenate(preds))
