@@ -1,12 +1,12 @@
-import numpy as np
-from numpy.random import randint
-import pandas as pd
 from collections import defaultdict
 from pathlib import Path
-import rasterio
-from tqdm import tqdm
-
 from typing import Tuple
+
+import numpy as np
+import pandas as pd
+import rasterio
+from numpy.random import randint
+from tqdm import tqdm
 
 from .masks import IMAGE_SIZES
 
@@ -82,7 +82,7 @@ class ImageSplitter:
             return True
         return False
 
-    def process(self, imsize: int=224, empty_ratio: int=2) -> None:
+    def process(self, imsize: int = 224, empty_ratio: int = 2) -> None:
         """Creates the solar and empty images, and their corresponding masks
 
         Parameters
@@ -104,6 +104,10 @@ class ImageSplitter:
 
         im_idx = 0
         for city, images in centroids_dict.items():
+            
+            if city != "Oxnard":
+                continue
+
             print(f"Processing {city}")
             for image_name, centroids in tqdm(images.items()):
 

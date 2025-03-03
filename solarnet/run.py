@@ -49,7 +49,7 @@ class RunTask:
     @staticmethod
     def train_classifier(max_epochs=100, warmup=2, patience=5, val_size=0.1,
                          test_size=0.1, data_folder='data',
-                         device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu',),
+                         device: str | None = None,
                          retrain: bool = False
                          ):
         """Train the classifier
@@ -70,13 +70,17 @@ class RunTask:
             The ratio of the entire dataset to use for the test set
         data_folder: pathlib.Path
             Path of the data folder, which should be set up as described in `data/README.md`
-        device: torch.device, default: cuda if available, else cpu
-            The device to train the models on
+        device: str, default:
+            The device to train the models on (mps, cuda or cpu)
+            
         """
         data_folder = Path(data_folder)
 
         model_dir = data_folder / 'models'
         model_path = model_dir / 'classifier.model'
+    
+        if device is None:
+            device = RunTask.determine_torch_device()
 
         model = Classifier()
         if retrain:
@@ -85,11 +89,11 @@ class RunTask:
         else:
             model_name = "classifier.model"
 
-        if device.type != 'cpu':
-            model = model.cuda()
+        # move weights to device
+        model.to(device)
 
         processed_folder = data_folder / 'processed'
-        dataset = ClassifierDataset(processed_folder=processed_folder)
+        dataset = ClassifierDataset(processed_folder=processed_folder, device=device)
 
         # make a train and val set
         train_mask, val_mask, test_mask = make_masks(len(dataset), val_size, test_size)
@@ -98,11 +102,11 @@ class RunTask:
         train_dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
         val_dataloader = DataLoader(ClassifierDataset(mask=val_mask,
                                                       processed_folder=processed_folder,
-                                                      transform_images=False),
+                                                      transform_images=False, device=device),
                                     batch_size=64, shuffle=True)
         test_dataloader = DataLoader(ClassifierDataset(mask=test_mask,
                                                        processed_folder=processed_folder,
-                                                       transform_images=False),
+                                                       transform_images=False, device=device),
                                      batch_size=64)
 
         train_classifier(model, train_dataloader, val_dataloader, max_epochs=max_epochs,
@@ -125,9 +129,22 @@ class RunTask:
         np.save(model_dir / f'{model_name.split(".")[0]}_true.npy', np.concatenate(true))
 
     @staticmethod
+    def determine_torch_device():
+        if torch.backends.mps.is_available():
+            print("Metal Performance Shaders (MPS) backend is available!")
+            device = torch.device("mps")
+        elif torch.cuda.is_available():
+            print("CUDO is available!")
+            device = torch.device('cuda:0')
+        else:
+            print("No GPU acceleration available, falling back to CPUs!")
+            device = torch.device('cpu')
+        return device
+
+    @staticmethod
     def train_segmenter(max_epochs=100, val_size=0.1, test_size=0.1, warmup=2,
                         patience=5, data_folder='data', use_classifier=True,
-                        device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
+                        device: str | None = None):
         """Train the segmentation model
 
         Parameters
@@ -150,13 +167,14 @@ class RunTask:
             Whether to use the pretrained classifier (saved in data/models/classifier.model by the
             train_classifier step) as the weights for the downsampling step of the segmentation
             model
-        device: torch.device, default: cuda if available, else cpu
-            The device to train the models on
+        device: str, default:
+            The device to train the models on (mps, cuda or cpu)
         """
         data_folder = Path(data_folder)
         model = Segmenter()
-        if device.type != 'cpu':
-            model = model.cuda()
+
+        if device is None:
+            device = RunTask.determine_torch_device()
 
         model_dir = data_folder / 'models'
         if use_classifier:
@@ -200,7 +218,7 @@ class RunTask:
     def train_both(self, c_max_epochs=100, c_warmup=2, c_patience=5, c_val_size=0.1,
                    c_test_size=0.1, s_max_epochs=100, s_warmup=2, s_patience=5,
                    s_val_size=0.1, s_test_size=0.1, data_folder='data',
-                   device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
+                   device: str | None = None):
         """Train the classifier, and use it to train the segmentation model.
         """
         data_folder = Path(data_folder)
