@@ -280,7 +280,10 @@ class RunTask:
         inputs_channel_last = np.rollaxis(inputs, 1, 4)
         sample_nr = 1
         plt.imshow(inputs_channel_last[sample_nr, ...], origin="upper")
-        plt.imshow(preds[sample_nr, 0, ...], alpha=0.6, vmin=0, vmax=1.0, origin="upper")
+
+        masked = preds[sample_nr, 0, ...] > 0.5
+
+        plt.imshow(masked, alpha=0.6, origin="upper")
         plt.colorbar()
         plt.show()
 
