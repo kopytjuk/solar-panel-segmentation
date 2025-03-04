@@ -8,6 +8,8 @@ import rasterio
 from numpy.random import randint
 from tqdm import tqdm
 
+from solarnet.preprocessing.utils import is_directory_not_empty
+
 from .masks import IMAGE_SIZES
 
 
@@ -61,6 +63,14 @@ class ImageSplitter:
             output_dict[row.city][row.image_name].add((
                 row.centroid_latitude_pixels, row.centroid_longitude_pixels
             ))
+
+        # filter for available cities
+        cities = IMAGE_SIZES.keys()
+        available_cities = [city for city in cities
+                            if is_directory_not_empty(self.data_folder / city.lower())]
+        output_dict = {city: output_dict[city]
+                       for city in available_cities if city in output_dict}
+
         return output_dict
 
     @staticmethod
@@ -104,9 +114,6 @@ class ImageSplitter:
 
         im_idx = 0
         for city, images in centroids_dict.items():
-            
-            if city != "Oxnard":
-                continue
 
             print(f"Processing {city}")
             for image_name, centroids in tqdm(images.items()):

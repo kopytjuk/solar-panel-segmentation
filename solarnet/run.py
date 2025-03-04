@@ -2,7 +2,9 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from PIL import Image
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -26,6 +28,7 @@ class RunTask:
         """
         mask_maker = MaskMaker(data_folder=Path(data_folder))
         mask_maker.process()
+        print("Done!")
 
     @staticmethod
     def split_images(data_folder='data', imsize=224, empty_ratio=2):
@@ -45,6 +48,7 @@ class RunTask:
         """
         splitter = ImageSplitter(data_folder=Path(data_folder))
         splitter.process(imsize=imsize, empty_ratio=empty_ratio)
+        print("Done!")
 
     @staticmethod
     def train_classifier(max_epochs=100, warmup=2, patience=5, val_size=0.1,
@@ -161,7 +165,7 @@ class RunTask:
 
         if device is None:
             device = RunTask.determine_torch_device()
-        
+
         print(f"Using device: '{device}'")
 
         # move weights to device
@@ -220,6 +224,68 @@ class RunTask:
                              warmup=s_warmup, patience=s_patience, use_classifier=True,
                              data_folder=data_folder, device=device)
 
+    @classmethod
+    def segment_new_data(cls, image_dir: str, batch_size: int = 64, image_size: int = 224,
+                         device: str | None = None):
+
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+        data_loader = torch.utils.data.DataLoader(
+            datasets.ImageFolder(image_dir, transforms.Compose([
+                transforms.Resize(image_size),
+                transforms.CenterCrop(image_size),
+                transforms.ToTensor(),
+                normalize,
+            ])),
+            batch_size=batch_size, shuffle=False, pin_memory=True)
+
+        if device is None:
+            device = cls.determine_torch_device()
+
+        # Load the appropriate model based on the model_type parameter
+        model_dir = Path("data") / 'models'
+        model = Segmenter()
+        model_path = model_dir / 'segmenter.model'
+
+        # Load the model's state_dict
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.eval()  # Set model to evaluation mode
+
+        # send model weights to device
+        model.to(device)
+        model.eval()
+
+        print("Generating test results")
+
+        images, preds = [], []
+        # we dont have masks for these pictures to evaluate the model but the images with the predicted areas will be saved for
+        # later manual inspection
+        with torch.no_grad():
+            for test_x, _ in tqdm(data_loader):
+                test_x = test_x.to(device)
+                test_preds = model(test_x)
+
+                print(test_preds.shape)
+                input_data = test_x.cpu().numpy()
+                images.append(input_data)
+
+                pred_mask = test_preds.cpu().numpy()
+                preds.append(pred_mask)
+
+        inputs = np.concatenate(images)
+        preds = np.concatenate(preds)
+
+        # from (B,C,H,W) to (B,H,W,C)
+        inputs_channel_last = np.rollaxis(inputs, 1, 4)
+        sample_nr = 1
+        plt.imshow(inputs_channel_last[sample_nr, ...], origin="upper")
+        plt.imshow(preds[sample_nr, 0, ...], alpha=0.6, vmin=0, vmax=1.0, origin="upper")
+        plt.colorbar()
+        plt.show()
+
+        print("Done!")
+
     @staticmethod
     def determine_torch_device() -> torch.device:
         if torch.backends.mps.is_available():
@@ -232,156 +298,3 @@ class RunTask:
             print("No GPU acceleration available, falling back to CPUs!")
             device = torch.device('cpu')
         return device
-
-    @classmethod
-    def classify_new_data(cls, data_folder='new_data',
-                          device: str | None = None,
-                          retrained: bool = False,
-                          ):
-        """Predict on new data using the trained classifier model
-
-        Parameters
-        ----------
-        data_folder: pathlib.Path
-            Path of the folder containing the trained models (classifier or segmenter)
-        new_data_folder: pathlib.Path
-            Path of the folder containing the new images to predict on
-        device: str, default: None
-            The device to train the models on (mps, cuda or cpu)
-        """
-        data_folder = Path(data_folder)
-        new_data_folder = data_folder / "processed"
-
-        
-
-        # Load the appropriate model based on the model_type parameter
-        model_dir = Path("data") / 'models'
-        model_type = "Classifier"
-        model = Classifier()
-        if retrained:
-            model_path = model_dir / 'classifier_retrained.model'
-        else:
-            model_path = model_dir / 'classifier.model'
-
-        # Load the model's state_dict
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        model.eval()  # Set model to evaluation mode
-
-        if device is None:
-            device = cls.determine_torch_device()
-
-        model.to(device)
-
-        # Load the new data
-        classifier_dataset = ClassifierDataset(processed_folder=new_data_folder, device=device)
-        new_dataloader = DataLoader(classifier_dataset, batch_size=64, shuffle=False)
-
-        print("Generating test results")
-        preds, true = [], []
-        with torch.no_grad():
-            for test_x, test_y in tqdm(new_dataloader):
-                test_preds = model(test_x)
-                preds.append(test_preds.squeeze(1).cpu().numpy().round())
-                true.append(test_y.cpu().numpy())
-
-        # real_labels = classifier_dataset.y.cpu().numpy()
-        predicted = np.concatenate(preds)
-        true_labels = np.concatenate(true)  # true labels and real label
-        comparison = true_labels == predicted
-        print(
-            f"identified {np.round(np.sum(comparison) / len(true_labels) * 100, 2)}% of buildings with PV")
-
-        not_identified = 0
-        wrong_indentified = 0
-        for i, label in enumerate(true_labels):
-            if label == 1 and predicted[i] == 0:
-                not_identified += 1
-            if label == 0 and predicted[i] == 1:
-                wrong_indentified += 1
-
-        print(f"{np.round(not_identified / len(predicted) * 100, 2)} % PVs were not identified")
-        print(f"{np.round(wrong_indentified / len(predicted) * 100, 2)}% were identified wrongly with PV")
-
-        # Save predictions for analysis
-        np.save(model_dir / f'{model_path.name.split(".")[0]}_new_preds.npy', np.concatenate(preds))
-        np.save(model_dir / f'{model_path.name.split(".")[0]}_new_true.npy', np.concatenate(true))
-
-        print(f"Predictions saved in {model_dir}")
-
-    @staticmethod
-    def segment_new_data(data_folder='new_data',
-                         device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
-        """Predict on new data using the trained segmenter model
-
-        Parameters
-        ----------
-        data_folder: pathlib.Path
-            Path of the folder containing the trained models (segmenter)
-        new_data_folder: pathlib.Path
-            Path of the folder containing the new images to predict on
-        device: torch.device, default: cuda if available, else cpu
-            The device to perform predictions on
-        """
-
-        data_folder = Path(data_folder)
-        new_data_folder = data_folder / "processed"
-
-        segmenter_dataset = SegmenterDataset(
-            processed_folder=new_data_folder, transform_images=False)
-        new_dataloader = DataLoader(segmenter_dataset, batch_size=64)
-
-        # Load the appropriate model based on the model_type parameter
-        model_dir = Path("data") / 'models'
-        model_type = "Segmenter"
-        model = Segmenter()
-        model_path = model_dir / 'segmenter.model'
-
-        # Load the model's state_dict
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        model.eval()  # Set model to evaluation mode
-
-        if device.type != 'cpu':
-            model = model.cuda()
-
-        print("Generating test results")
-        images, preds, true = [], [], []
-        # we dont have masks for these pictures to evaluate the model but the images with the predicted areas will be saved for
-        # later manual inspection
-        with torch.no_grad():
-            for test_x, _ in tqdm(new_dataloader):
-                test_preds = model(test_x)
-                images.append(test_x.cpu().numpy())
-                preds.append(test_preds.cpu().numpy())
-
-        identified_folder = Path(__file__).parent.parent / "new_data" / "identified"
-        identified_folder.mkdir(exist_ok=True)
-
-        # all_images = np.concatenate(images)
-        # all_images = (all_images * 255).astype('uint8')  # Scale to [0, 255] and convert to uint8
-        # rearanged_imgs = [np.moveaxis(i, 0, -1) for i in all_images]  # Rearrange (bands, x, y) to (x, y, bands)
-        # new_images = [Image.fromarray(img.astype('uint8')) for img in rearanged_imgs]  # Convert to unsigned 8-bit integer format
-
-        # predicted masks of the PV
-        pred_images = np.concatenate(preds)
-        all_preds = (pred_images * 255).astype('uint8')
-        mask_rgb = [np.repeat(i, 3, axis=0) for i in all_preds]
-        # Rearrange (bands, x, y) to (x, y, bands)
-        rearanged_preds = [np.moveaxis(i, 0, -1) for i in mask_rgb]
-        # Convert to unsigned 8-bit integer format
-        new_preds = [Image.fromarray(img.astype('uint8')) for img in rearanged_preds]
-
-        for i, img in enumerate(new_preds):
-            imgg = Image.fromarray(np.moveaxis(
-                np.load(segmenter_dataset.org_solar_files[i]), 0, -1))
-            # put images side by side to be able to check performance manually
-            new_img = Image.new('RGB', (224*2, 224))
-            new_img.paste(imgg, (0, 0))  # Paste image1 at the left
-            new_img.paste(img, (224, 0))
-            new_img.save(
-                identified_folder / f'predicted_{segmenter_dataset.org_solar_files[i].name.replace("npy", "png")}')
-
-        # Save predictions for analysis
-        np.save(model_dir / f'{model_type}_new_preds.npy', np.concatenate(preds))
-        np.save(model_dir / f'{model_type}_new_true.npy', np.concatenate(true))
-        torch.cuda.empty_cache()
-        print(f"Predictions saved in {model_dir}")

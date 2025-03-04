@@ -9,6 +9,8 @@ from rasterio.features import rasterize
 from shapely import Polygon
 from tqdm import tqdm
 
+from solarnet.preprocessing.utils import is_directory_not_empty
+
 IMAGE_SIZES = {
     'Modesto': (5000, 5000),
     'Fresno': (5000, 5000),
@@ -42,14 +44,23 @@ class MaskMaker:
                         usecols=['polygon_id', 'city', 'image_name', 'jaccard_index']
                         )
         )
+
+        # keep only those cities, which are available (i.e. aerial images are downloaded)
+        cities = IMAGE_SIZES.keys()
+        available_cities = [city for city in cities
+                            if is_directory_not_empty(self.data_folder / city.lower())]
+        polygon_images = {city: polygon_images[city] 
+                          for city in available_cities if city in polygon_images}
+
         return polygon_images, polygon_pixels
 
     def process(self) -> None:
 
         polygon_images, polygon_pixels = self._read_data()
 
-        for city, files in polygon_images.items():
+        for city, aerial_image_files in polygon_images.items():
             print(f'Processing {city}')
+
             # first, we make sure the mask file exists; if not,
             # we make it
             masked_city = self.data_folder / f"{city}_masks"
@@ -58,7 +69,7 @@ class MaskMaker:
             if not masked_city.exists():
                 masked_city.mkdir()
 
-            for image, polygons in tqdm(files.items()):
+            for image, polygons in tqdm(aerial_image_files.items(), desc="Creating masks!"):
                 mask = np.zeros((x_size, y_size), dtype=np.byte)
 
                 for polygon in polygons:
@@ -109,6 +120,11 @@ class MaskMaker:
     def make_mask_v2(coords: List, imsizes: Tuple[int, int]) -> np.array:
         """Create masks from polygon vertices using `rasterio`
         """
+        # the coords are in pixel coordinates (x: to the left, y: bottom)
+        # however the rasterize function operates in matrix coordinates, i.e.
+        # dimension 0: rows, dimension 1: columns - thus we need to invert
+        coords = [(c[1], c[0]) for c in coords]
+        
         poly = Polygon(coords)
 
         mask = rasterize([poly], out_shape=imsizes, fill=0, default_value=1,
