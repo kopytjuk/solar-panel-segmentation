@@ -72,7 +72,6 @@ class RunTask:
             Path of the data folder, which should be set up as described in `data/README.md`
         device: str, default:
             The device to train the models on (mps, cuda or cpu)
-            
         """
         data_folder = Path(data_folder)
 
@@ -234,9 +233,9 @@ class RunTask:
             device = torch.device('cpu')
         return device
 
-    @staticmethod
-    def classify_new_data(data_folder='new_data',
-                          device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
+    @classmethod
+    def classify_new_data(cls, data_folder='new_data',
+                          device: str | None = None,
                           retrained: bool = False,
                           ):
         """Predict on new data using the trained classifier model
@@ -247,17 +246,13 @@ class RunTask:
             Path of the folder containing the trained models (classifier or segmenter)
         new_data_folder: pathlib.Path
             Path of the folder containing the new images to predict on
-        device: torch.device, default: cuda if available, else cpu
-            The device to perform predictions on
+        device: str, default: None
+            The device to train the models on (mps, cuda or cpu)
         """
         data_folder = Path(data_folder)
         new_data_folder = data_folder / "processed"
 
-        # Load the new data
-        # images are not
-        classifier_dataset = ClassifierDataset(processed_folder=new_data_folder)
-
-        new_dataloader = DataLoader(classifier_dataset, batch_size=64, shuffle=False)
+        
 
         # Load the appropriate model based on the model_type parameter
         model_dir = Path("data") / 'models'
@@ -272,8 +267,14 @@ class RunTask:
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()  # Set model to evaluation mode
 
-        if device.type != 'cpu':
-            model = model.cuda()
+        if device is None:
+            device = cls.determine_torch_device()
+
+        model.to(device)
+
+        # Load the new data
+        classifier_dataset = ClassifierDataset(processed_folder=new_data_folder, device=device)
+        new_dataloader = DataLoader(classifier_dataset, batch_size=64, shuffle=False)
 
         print("Generating test results")
         preds, true = [], []
