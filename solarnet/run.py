@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
-from matplotlib import pyplot as plt
+from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -225,20 +225,30 @@ class RunTask:
                              data_folder=data_folder, device=device)
 
     @classmethod
-    def segment_new_data(cls, image_dir: str, batch_size: int = 64, image_size: int = 224,
-                         device: str | None = None):
+    def segment_new_data(cls, image_dir: str, output_dir: str, batch_size: int = 64,
+                         image_size: int = 224, device: str | None = None):
+        """Segments new data in IMAGE_DIR and stores the segmentation masks as undistored bitmaps in
+        OUTPUT_DIR.
 
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
+        Args:
+            image_dir (str): folder with images (e.g. example-dir/unclassified/123.img). Note that
+                you have to create an artificial folder level between the image directory and the
+                image. This "unusual" behaviour is due to torch's `DatasetFolder` always requires
+                classes.
+            output_dir (str): output folder
+            batch_size (int, optional): Batch size for the network, reduce
+                if you get memory warnings. Defaults to 64.
+            image_size (int, optional): Input image edge size used in training. Defaults to 224.
+            device (str | None, optional): Device to conduct the inference on (cpu, mps, cuda).
+                Defaults to None.
+        """
+        
+        output_dir = Path(output_dir)
 
-        data_loader = torch.utils.data.DataLoader(
-            datasets.ImageFolder(image_dir, transforms.Compose([
-                transforms.Resize(image_size),
-                transforms.CenterCrop(image_size),
-                transforms.ToTensor(),
-                normalize,
-            ])),
-            batch_size=batch_size, shuffle=False, pin_memory=True)
+        if not output_dir.exists():
+            output_dir.mkdir()
+
+        data_loader = cls.create_dataloader_for_inference(image_dir, batch_size, image_size)
 
         if device is None:
             device = cls.determine_torch_device()
@@ -257,40 +267,69 @@ class RunTask:
         model.eval()
 
         print("Generating test results")
-
-        images, preds = [], []
-        # we dont have masks for these pictures to evaluate the model but the images with the predicted areas will be saved for
-        # later manual inspection
+        pred_masks = []
         with torch.no_grad():
             for test_x, _ in tqdm(data_loader):
                 test_x = test_x.to(device)
                 test_preds = model(test_x)
 
-                print(test_preds.shape)
-                input_data = test_x.cpu().numpy()
-                images.append(input_data)
-
                 pred_mask = test_preds.cpu().numpy()
-                preds.append(pred_mask)
+                pred_masks.append(pred_mask)
 
-        inputs = np.concatenate(images)
-        preds = np.concatenate(preds)
+        pred_masks = np.concatenate(pred_masks)
 
-        # from (B,C,H,W) to (B,H,W,C)
-        inputs_channel_last = np.rollaxis(inputs, 1, 4)
-        sample_nr = 1
-        plt.imshow(inputs_channel_last[sample_nr, ...], origin="upper")
+        # Get the list of image file paths
+        image_file_paths = [Path(sample[0]) for sample in data_loader.dataset.imgs]
 
-        masked = preds[sample_nr, 0, ...] > 0.5
+        # iterate over each sample and store the segmentation mask as BMP
+        for image_path, pred_mask in zip(image_file_paths, pred_masks):
 
-        plt.imshow(masked, alpha=0.6, origin="upper")
-        plt.colorbar()
-        plt.show()
+            image_path = Path(image_path)
+            
+            # 0..1 -> 0..256
+            pred_mask = (pred_mask[0, ...]*256).astype(np.uint8)
+
+            # Convert the matrix to an image
+            image = Image.fromarray(pred_mask)
+
+            image_base_name = image_path.stem
+
+            # Save the image as a BMP file
+            image_output_path = output_dir / f"{image_base_name}.bmp"
+            image.save(image_output_path)
 
         print("Done!")
 
+    @classmethod
+    def create_dataloader_for_inference(cls, image_dir, batch_size, image_size)\
+            -> torch.utils.data.DataLoader:
+
+        # define the same normalizer as it was used in training
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+        image_folder_dset = datasets.ImageFolder(image_dir, transforms.Compose([
+            # since image_size is only an int, the resizing does not distort the image,
+            # the proportions stay the same. For non square images we need to crop.
+            transforms.Resize(image_size),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+            normalize,
+        ]))
+        data_loader = torch.utils.data.DataLoader(
+            image_folder_dset,
+            batch_size=batch_size, shuffle=False, pin_memory=True)
+
+        return data_loader
+
     @staticmethod
     def determine_torch_device() -> torch.device:
+        """In case user does not provide a desired device, this functions selects
+        a device based on the machine's capabilities.
+
+        Returns:
+            torch.device: selected device
+        """
         if torch.backends.mps.is_available():
             print("Metal Performance Shaders (MPS) backend is available!")
             device = torch.device("mps")

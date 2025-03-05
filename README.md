@@ -97,9 +97,44 @@ model, by running
 python run.py train_both
 ```
 
+#### 3.5. Use segmentation model
+
+Place your image in a new folder and create a folder in-between (e.g. `unclassified`):
+
+```
+data/example_images
+└── unclassified
+    ├── image1.png
+    └── image2.jpg
+```
+
+Note that the images will be resized to the network's input shape (e.g. `224` pixels) and
+cropped in case the images are not square-shaped (i.e. W != H).
+
+Provide both input and output folders and run:
+
+```bash
+python run.py segment_new_data data/example_images data/example_outputs
+```
+
+The result should look like this:
+
+```
+data/example_outputs
+├── image1.bmp
+└── image2.bmp
+```
+
 ## 4. Setup
 
-Pyenv and Poetry are used to setup the repository.
+Pyenv and Poetry are used to setup the repository:
+
+```
+# we assume that pyenv is set-up and `which python` points to the right python version
+
+# install the dependencies
+poetry install
+```
 
 This pipeline can be tested by running `pytest`.
 
