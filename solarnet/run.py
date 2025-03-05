@@ -242,11 +242,6 @@ class RunTask:
             device (str | None, optional): Device to conduct the inference on (cpu, mps, cuda).
                 Defaults to None.
         """
-        
-        output_dir = Path(output_dir)
-
-        if not output_dir.exists():
-            output_dir.mkdir()
 
         data_loader = cls.create_dataloader_for_inference(image_dir, batch_size, image_size)
 
@@ -280,6 +275,11 @@ class RunTask:
 
         # Get the list of image file paths
         image_file_paths = [Path(sample[0]) for sample in data_loader.dataset.imgs]
+
+        # create output folder if necessary
+        output_dir = Path(output_dir)
+        if not output_dir.exists():
+            output_dir.mkdir()
 
         # iterate over each sample and store the segmentation mask as BMP
         for image_path, pred_mask in zip(image_file_paths, pred_masks):
