@@ -4,7 +4,7 @@ Finding solar panels using USGS satellite imagery.
 
 ## Fork Additions
 
-- **Inference** logic to use the trained segmentation model with arbitrary image data
+- **Inference** logic to use the trained segmentation model with arbitrary image data (section 3.5)
 - Faster (**190x**) training mask creation using `rasterio.features.rasterize()` reducing the processing from 21h to 5min.
 - On MacOS, using Metal Performance Shaders (MPS) is possible for training and inference (faster than CPU)
 
