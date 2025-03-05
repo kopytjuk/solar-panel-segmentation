@@ -2,6 +2,12 @@
 
 Finding solar panels using USGS satellite imagery.
 
+## Fork Additions
+
+- **Inference** logic to use the trained segmentation model with arbitrary image data
+- Faster (**190x**) training mask creation using `rasterio.features.rasterize()` reducing the processing from 21h to 5min.
+- On MacOS, using Metal Performance Shaders (MPS) is possible for training and inference (faster than CPU)
+
 ## 1. Introduction
 
 This repository leverages the [distributed solar photovoltaic array location and extent dataset for remote sensing object identification](https://www.nature.com/articles/sdata2016106)
