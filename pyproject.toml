@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "solar-panel-segmentation"
+version = "0.1.0"
+description = ""
+authors = ["Gabriel Tseng", "Marat Kopytjuk"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+torch = "^2.6.0"
+numpy = "^2.2.3"
+pandas = "^2.2.3"
+tqdm = "^4.67.1"
+pillow = "^11.1.0"
+rasterio = "^1.4.3"
+scikit-learn = "^1.6.1"
+fire = "^0.7.0"
+matplotlib = "^3.10.1"
+torchvision = "^0.21.0"
+ipykernel = "^6.29.5"
+shapely = "^2.0.7"
+pep8 = "^1.7.1"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+flake8 = "^7.1.2"
+pyqt5 = "^5.15.11"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

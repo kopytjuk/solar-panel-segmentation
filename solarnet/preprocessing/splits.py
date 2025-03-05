@@ -1,12 +1,14 @@
-import numpy as np
-from numpy.random import randint
-import pandas as pd
 from collections import defaultdict
 from pathlib import Path
+from typing import Tuple
+
+import numpy as np
+import pandas as pd
 import rasterio
+from numpy.random import randint
 from tqdm import tqdm
 
-from typing import Tuple
+from solarnet.preprocessing.utils import is_directory_not_empty
 
 from .masks import IMAGE_SIZES
 
@@ -61,6 +63,14 @@ class ImageSplitter:
             output_dict[row.city][row.image_name].add((
                 row.centroid_latitude_pixels, row.centroid_longitude_pixels
             ))
+
+        # filter for available cities
+        cities = IMAGE_SIZES.keys()
+        available_cities = [city for city in cities
+                            if is_directory_not_empty(self.data_folder / city.lower())]
+        output_dict = {city: output_dict[city]
+                       for city in available_cities if city in output_dict}
+
         return output_dict
 
     @staticmethod
@@ -82,7 +92,7 @@ class ImageSplitter:
             return True
         return False
 
-    def process(self, imsize: int=224, empty_ratio: int=2) -> None:
+    def process(self, imsize: int = 224, empty_ratio: int = 2) -> None:
         """Creates the solar and empty images, and their corresponding masks
 
         Parameters
@@ -104,6 +114,7 @@ class ImageSplitter:
 
         im_idx = 0
         for city, images in centroids_dict.items():
+
             print(f"Processing {city}")
             for image_name, centroids in tqdm(images.items()):
 

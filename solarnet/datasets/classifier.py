@@ -1,12 +1,12 @@
+import random
+from pathlib import Path
+from typing import List, Optional, Tuple
+
 import numpy as np
 import torch
-from pathlib import Path
-import random
 
-from typing import Optional, List, Tuple
-
+from .transforms import colour_jitter, horizontal_flip, no_change, vertical_flip
 from .utils import normalize
-from .transforms import no_change, horizontal_flip, vertical_flip, colour_jitter
 
 
 class ClassifierDataset:
@@ -54,8 +54,19 @@ class ClassifierDataset:
         return chosen_function(image)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+
+
         y = self.y[index]
         x = np.load(self.x_files[index])
+
         if self.transform_images: x = self._transform_images(x)
         if self.normalize: x = normalize(x)
-        return torch.as_tensor(x.copy(), device=self.device).float(), y
+
+        # the following condition is needed, since MPS only supports float16
+        if str(self.device) == "mps":
+            x = x.astype(np.float16)
+
+        x_tensor = torch.as_tensor(x.copy(), device=self.device)
+
+        return x_tensor.float(), y
+

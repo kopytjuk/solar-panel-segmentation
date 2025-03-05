@@ -1,12 +1,12 @@
+from typing import Any, List, Tuple
+
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torch.optim.optimizer import Optimizer
-from tqdm import tqdm
-import numpy as np
 from sklearn.metrics import roc_auc_score
-
-from typing import Any, List, Tuple
+from torch.optim.optimizer import Optimizer
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 def train_classifier(model: torch.nn.Module,
@@ -49,10 +49,10 @@ def train_classifier(model: torch.nn.Module,
             # then, we train the whole thing
             optimizer = torch.optim.Adam(model.parameters())
 
-        train_data, val_data = _train_classifier_epoch(model, optimizer, train_dataloader,
+        _, val_metrics = _train_classifier_epoch(model, optimizer, train_dataloader,
                                                        val_dataloader)
-        if val_data[1] > best_val_auc_roc:
-            best_val_auc_roc = val_data[1]
+        if val_metrics[1] > best_val_auc_roc:
+            best_val_auc_roc = val_metrics[1]
             patience_counter = 0
             best_state_dict = model.state_dict()
         else:
@@ -163,6 +163,7 @@ def _train_segmenter_epoch(model: torch.nn.Module,
     t_losses, v_losses = [], []
     model.train()
     for x, y in tqdm(train_dataloader):
+
         optimizer.zero_grad()
         preds = model(x)
 

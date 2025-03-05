@@ -1,6 +1,12 @@
-# Solar segmentation [![Build Status](https://travis-ci.com/gabrieltseng/solar-panel-segmentation.svg?branch=master)](https://travis-ci.com/gabrieltseng/solar-panel-segmentation)
+# Solar segmentation
 
 Finding solar panels using USGS satellite imagery.
+
+## Fork Additions
+
+- **Inference** logic to use the trained segmentation model with arbitrary image data (section 3.5)
+- Faster (**190x**) training mask creation using `rasterio.features.rasterize()` reducing the processing from 21h to 5min.
+- On MacOS, using Metal Performance Shaders (MPS) is possible for training and inference (faster than CPU)
 
 ## 1. Introduction
 
@@ -44,12 +50,12 @@ for each image, where `0` indicates background and `1` indicates the presence of
 ```bash
 python run.py make_masks
 ```
-This step takes quite a bit of time to run. Using an `AWS t2.2xlarge` instance took the following times for each city:
+This step takes quite a bit of time to run. Using an Macbook Pro M1 took the following times for each city (min:secs):
 
-- Fresno: 14:32:09
-- Modesto: 41:48
-- Oxnard: 1:59:20
-- Stockton: 3:16:08
+- Fresno: 4:30
+- Modesto: 0:10
+- Oxnard: 0:31
+- Stockton: 0:48
 
 #### 3.2. Split images
 
@@ -74,14 +80,21 @@ This step trains and saves the classifier. In addition, the test set results are
 
 ```bash
 python run.py train_classifier
+
+# On MacOS, training on Metal Performance Shaders (MPS) is possible
+python run.py train_classifier --device mps
 ```
 
 #### 3.4. Train segmentation model
 
 This step trains and saved the segmentation model. In addition, the test set results are stored for future analysis.
 By default, this step expects the classifier to have been run, and will try to use it as a pretrained base.
+
 ```bash
 python run.py train_segmenter
+
+# On MacOS, training on Metal Performance Shaders (MPS) is possible
+python run.py train_segmenter --device mps
 ```
 
 Both models can be trained consecutively, with the classifier automatically being used as the base of the segmentation
@@ -90,19 +103,43 @@ model, by running
 python run.py train_both
 ```
 
+#### 3.5. Use segmentation model
+
+Place your image in a new folder and create a folder in-between (e.g. `unclassified`):
+
+```
+data/example_images
+└── unclassified
+    ├── image1.png
+    └── image2.jpg
+```
+
+Note that the images will be resized to the network's input shape (e.g. `224` pixels) and
+cropped in case the images are not square-shaped (i.e. W != H).
+
+Provide both input and output folders and run:
+
+```bash
+python run.py segment_new_data data/example_images data/example_outputs
+```
+
+The result should look like this:
+
+```
+data/example_outputs
+├── image1.bmp
+└── image2.bmp
+```
+
 ## 4. Setup
 
-[Anaconda](https://www.anaconda.com/download/#macos) running python 3.7 is used as the package manager. To get set up
-with an environment, install Anaconda from the link above, and (from this directory) run
+Pyenv and Poetry are used to setup the repository:
 
-```bash
-conda env create -f environment.{mac, ubuntu.cpu}.yml
 ```
-This will create an environment named `solar` with all the necessary packages to run the code. To 
-activate this environment, run
+# we assume that pyenv is set-up and `which python` points to the right python version
 
-```bash
-conda activate solar
+# install the dependencies
+poetry install
 ```
 
 This pipeline can be tested by running `pytest`.
