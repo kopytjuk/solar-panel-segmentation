@@ -5,4 +5,6 @@
 *.tif
 *.png
 
+data/example-*
+
 !.python-version
