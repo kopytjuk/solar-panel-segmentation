@@ -51,8 +51,12 @@ class MaskMaker:
         cities = IMAGE_SIZES.keys()
         available_cities = [city for city in cities
                             if is_directory_not_empty(self.data_folder / city.lower())]
+        print(f'Available cities: {available_cities}')
+
         polygon_images = {city: polygon_images[city] 
                           for city in available_cities if city in polygon_images}
+        
+        print(f'Found {len(polygon_images)} cities with aerial images.')
 
         return polygon_images, polygon_pixels
 
