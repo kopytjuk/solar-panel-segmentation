@@ -24,6 +24,8 @@ dependencies = [
     "shapely>=2.0.7,<3",
     "pep8>=1.7.1,<2",
     "ipython<9.0.0",
+    "azure-ai-ml>=1.27.1",
+    "azure-identity>=1.23.0",
 ]
 
 [dependency-groups]
