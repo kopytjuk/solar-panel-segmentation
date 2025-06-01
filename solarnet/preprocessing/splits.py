@@ -67,7 +67,7 @@ class ImageSplitter:
         # filter for available cities
         cities = IMAGE_SIZES.keys()
         available_cities = [city for city in cities
-                            if is_directory_not_empty(self.data_folder / city.lower())]
+                            if is_directory_not_empty(self.data_folder / city)]
         output_dict = {city: output_dict[city]
                        for city in available_cities if city in output_dict}
 
