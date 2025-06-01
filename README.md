@@ -135,13 +135,13 @@ data/example_outputs
 
 ## 4. Setup
 
-Pyenv and Poetry are used to setup the repository:
+uv package manager is used for this project:
 
 ```
 # we assume that pyenv is set-up and `which python` points to the right python version
 
-# install the dependencies
-poetry install
+# install the dependencies and show the --help statement
+uv run python run.py
 ```
 
 This pipeline can be tested by running `pytest`.
