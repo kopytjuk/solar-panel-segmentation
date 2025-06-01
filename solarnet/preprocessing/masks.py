@@ -35,6 +35,8 @@ class MaskMaker:
     def _read_data(self) -> Tuple[defaultdict, dict]:
         metadata_folder = self.data_folder / 'metadata'
 
+        print(f'Reading metadata from {metadata_folder}...')
+
         polygon_pixels = self._csv_to_dict_polygon_pixels(
             pd.read_csv(metadata_folder / 'polygonVertices_PixelCoordinates.csv')
         )
