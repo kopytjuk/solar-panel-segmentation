@@ -122,7 +122,7 @@ cropped in case the images are not square-shaped (i.e. W != H).
 Provide both input and output folders and run:
 
 ```bash
-python run.py segment_new_data data/example_images data/example_outputs
+python run.py segment_new_data data/example-images data/example_outputs
 ```
 
 The result should look like this:

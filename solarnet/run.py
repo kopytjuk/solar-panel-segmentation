@@ -334,7 +334,7 @@ class RunTask:
             print("Metal Performance Shaders (MPS) backend is available!")
             device = torch.device("mps")
         elif torch.cuda.is_available():
-            print("CUDO is available!")
+            print("CUDA is available!")
             device = torch.device('cuda:0')
         else:
             print("No GPU acceleration available, falling back to CPUs!")
